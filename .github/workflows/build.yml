@@ -55,23 +55,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Validate signing config
-        if: github.event_name != 'pull_request'
-        run: |
-          if [ "${{ secrets.KEYSTORE }}" = "" ]; then
-            echo "::error::Signing secrets not configured. KEYSTORE secret is required for release builds."
-            exit 1
-          fi
-
-      - name: Create signing.properties
-        if: github.event_name != 'pull_request'
-        run: |
-          echo KEYSTORE_FILE=../keystore.jks > signing.properties
-          echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} >> signing.properties
-          echo KEY_ALIAS=${{ secrets.KEY_ALIAS }} >> signing.properties
-          echo KEY_PASSWORD=${{ secrets.KEY_PASSWORD }} >> signing.properties
-          echo ${{ secrets.KEYSTORE }} | base64 --decode > keystore.jks
-
       - name: Download DF LKMs
         uses: actions/download-artifact@v7
         with:
@@ -85,6 +68,31 @@ jobs:
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v6
+
+      - name: Setup signing config
+        if: github.event_name != 'pull_request'
+        run: |
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo "Using repository secrets for signing..."
+            echo "KEYSTORE_FILE=../keystore.jks" > signing.properties
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> signing.properties
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> signing.properties
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> signing.properties
+            echo "${{ secrets.KEYSTORE }}" | base64 --decode > keystore.jks
+          else
+            echo "Secrets not configured, generating temporary keystore..."
+            keytool -genkeypair -keystore keystore.jks -storetype JKS \
+              -storepass df-ksu -keypass df-ksu \
+              -alias df-ksu -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=DFRoot"
+            echo "KEYSTORE_FILE=../keystore.jks" > signing.properties
+            echo "KEYSTORE_PASSWORD=df-ksu" >> signing.properties
+            echo "KEY_ALIAS=df-ksu" >> signing.properties
+            echo "KEY_PASSWORD=df-ksu" >> signing.properties
+          fi
+          mkdir -p app
+          cp keystore.jks app/keystore.jks || true
+          cp signing.properties app/signing.properties || true
 
       - name: Build DFRoot APK
         run: |
